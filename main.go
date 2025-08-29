@@ -4,12 +4,14 @@ import "net/http"
 
 func main() {
 	serveMux := http.NewServeMux()
-	server := http.Server{
+	serveMux.Handle("/", http.FileServer(http.Dir(".")))
+
+	port := "8080"
+
+	server := &http.Server{
 		Handler: serveMux,
-		Addr:    ":8080",
+		Addr:    ":" + port,
 	}
 
-	for {
-		server.ListenAndServe()
-	}
+	server.ListenAndServe()
 }
