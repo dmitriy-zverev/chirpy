@@ -6,10 +6,18 @@ import (
 )
 
 func main() {
-	filePathRoot := "/"
+	appPath := "/app/"
+	healthzPath := "/healthz"
 
 	serveMux := http.NewServeMux()
-	serveMux.Handle(filePathRoot, http.FileServer(http.Dir(".")))
+	serveMux.Handle(
+		appPath,
+		http.StripPrefix(
+			appPath,
+			http.FileServer(http.Dir(".")),
+		),
+	)
+	serveMux.HandleFunc(healthzPath, healthz)
 
 	port := "8080"
 
@@ -18,6 +26,12 @@ func main() {
 		Addr:    ":" + port,
 	}
 
-	log.Printf("Serving files from %s on port: %s\n", filePathRoot, port)
+	log.Printf("Serving files from %s on port: %s\n", appPath, port)
 	log.Fatal(server.ListenAndServe())
+}
+
+func healthz(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("OK"))
 }
