@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -20,12 +21,22 @@ func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
 
 func (cfg *apiConfig) metricsHandler() http.Handler {
 	handler := func(w http.ResponseWriter, req *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 
 		numberHits := cfg.fileserverHits.Load()
 		numberHitsStr := strconv.Itoa(int(numberHits))
-		w.Write([]byte("Hits: " + numberHitsStr))
+		w.Write(
+			[]byte(fmt.Sprintf(
+				`<html>
+<body>
+	<h1>Welcome, Chirpy Admin</h1>
+	<p>Chirpy has been visited %s times!</p>
+</body>
+</html>`,
+				numberHitsStr,
+			)),
+		)
 	}
 	return http.HandlerFunc(handler)
 }
@@ -54,19 +65,22 @@ func middlewareLog(next http.Handler) http.Handler {
 }
 
 func main() {
-	appPath := "/app/"
-	healthzPath := "/healthz"
-	metricsPath := "/metrics"
-	resetPath := "/reset"
+	appPrefix := "/app/"
+	apiPrefix := "/api"
+	adminPrefix := "/admin"
+
+	healthzPath := apiPrefix + "/healthz"
+	metricsPath := adminPrefix + "/metrics"
+	resetPath := adminPrefix + "/reset"
 
 	cfg := apiConfig{}
 
 	serveMux := http.NewServeMux()
 	serveMux.Handle(
-		appPath,
+		appPrefix,
 		cfg.middlewareMetricsInc(
 			http.StripPrefix(
-				appPath,
+				appPrefix,
 				http.FileServer(http.Dir(".")),
 			),
 		),
@@ -81,6 +95,6 @@ func main() {
 		Addr:    ":" + port,
 	}
 
-	log.Printf("Serving files from %s on port: %s\n", appPath, port)
+	log.Printf("Serving files from %s on port: %s\n", appPrefix, port)
 	log.Fatal(server.ListenAndServe())
 }
