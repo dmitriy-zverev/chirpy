@@ -12,13 +12,10 @@ type apiConfig struct {
 }
 
 func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
-	handler := func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cfg.fileserverHits.Add(1)
-		log.Printf("%d\n", cfg.fileserverHits.Load())
-		next.ServeHTTP(w, req)
-	}
-
-	return http.HandlerFunc(handler)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (cfg *apiConfig) metricsHandler() http.Handler {
@@ -49,6 +46,13 @@ func healthzHandler(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte("OK"))
 }
 
+func middlewareLog(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 	appPath := "/app/"
 	healthzPath := "/healthz"
@@ -67,9 +71,9 @@ func main() {
 			),
 		),
 	)
-	serveMux.HandleFunc(healthzPath, healthzHandler)
-	serveMux.HandleFunc(metricsPath, cfg.metricsHandler().ServeHTTP)
-	serveMux.HandleFunc(resetPath, cfg.resetHandler().ServeHTTP)
+	serveMux.HandleFunc("GET "+healthzPath, healthzHandler)
+	serveMux.HandleFunc("GET "+metricsPath, cfg.metricsHandler().ServeHTTP)
+	serveMux.HandleFunc("POST "+resetPath, cfg.resetHandler().ServeHTTP)
 
 	port := "8080"
 	server := &http.Server{
