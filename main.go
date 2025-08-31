@@ -34,6 +34,7 @@ func main() {
 	metricsPath := adminPrefix + "/metrics"
 	resetPath := adminPrefix + "/reset"
 	chirpsPath := apiPrefix + "/chirps"
+	chirpPath := apiPrefix + "/chirps/{chirpID}"
 	usersPath := apiPrefix + "/users"
 
 	cfg := handlers.ApiConfig{
@@ -57,6 +58,7 @@ func main() {
 	serveMux.HandleFunc("POST "+usersPath, cfg.UsersHandler)
 	serveMux.HandleFunc("POST "+chirpsPath, cfg.ChirpsHandler)
 	serveMux.HandleFunc("GET "+chirpsPath, cfg.ChirpsGetHandler)
+	serveMux.HandleFunc("GET "+chirpPath, cfg.ChirpGetHandler)
 
 	port := "8080"
 	server := &http.Server{

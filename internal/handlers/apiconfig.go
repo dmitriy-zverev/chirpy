@@ -161,7 +161,7 @@ func (cfg *ApiConfig) ChirpsHandler(w http.ResponseWriter, req *http.Request) {
 
 	createChirpParams := database.CreateChirpParams{
 		Body:   strings.Join(splittedBody, " "),
-		UserID: uuid.NullUUID{UUID: userId, Valid: true},
+		UserID: userId,
 	}
 	chirp, err := cfg.DbQueries.CreateChirp(context.Background(), createChirpParams)
 	if err != nil {
@@ -172,11 +172,17 @@ func (cfg *ApiConfig) ChirpsHandler(w http.ResponseWriter, req *http.Request) {
 
 	dat, err := json.Marshal(
 		struct {
-			Body   string        `json:"body"`
-			UserID uuid.NullUUID `json:"user_id"`
+			Id        string    `json:"id"`
+			CreatedAt string    `json:"created_at"`
+			UpdatedAt string    `json:"updated_at"`
+			Body      string    `json:"body"`
+			UserID    uuid.UUID `json:"user_id"`
 		}{
-			Body:   chirp.Body,
-			UserID: chirp.UserID,
+			Id:        chirp.ID.String(),
+			CreatedAt: chirp.CreatedAt.String(),
+			UpdatedAt: chirp.UpdatedAt.String(),
+			Body:      chirp.Body,
+			UserID:    userId,
 		},
 	)
 	if err != nil {
@@ -213,12 +219,55 @@ func (cfg *ApiConfig) ChirpsGetHandler(w http.ResponseWriter, req *http.Request)
 			CreatedAt: chirp.CreatedAt.String(),
 			UpdatedAt: chirp.UpdatedAt.String(),
 			Body:      chirp.Body,
-			UserID:    chirp.UserID.UUID.String(),
+			UserID:    chirp.UserID.String(),
 		}
 		chirpsJsons = append(chirpsJsons, newChirpStruct)
 	}
 
 	dat, err := json.Marshal(chirpsJsons)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(dat)
+}
+
+func (cfg *ApiConfig) ChirpGetHandler(w http.ResponseWriter, req *http.Request) {
+	chirpId, err := uuid.Parse(req.PathValue("chirpID"))
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	chirp, err := cfg.DbQueries.GetChirp(context.Background(), chirpId)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	type chirpJson struct {
+		Id        string `json:"id"`
+		CreatedAt string `json:"created_at"`
+		UpdatedAt string `json:"updated_at"`
+		Body      string `json:"body"`
+		UserID    string `json:"user_id"`
+	}
+
+	dat, err := json.Marshal(
+		chirpJson{
+			Id:        chirp.ID.String(),
+			CreatedAt: chirp.CreatedAt.String(),
+			UpdatedAt: chirp.UpdatedAt.String(),
+			Body:      chirp.Body,
+			UserID:    chirp.UserID.String(),
+		},
+	)
 	if err != nil {
 		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
