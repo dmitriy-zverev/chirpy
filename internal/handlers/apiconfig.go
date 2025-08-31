@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"context"
@@ -15,25 +15,25 @@ import (
 	"github.com/google/uuid"
 )
 
-type apiConfig struct {
-	fileserverHits atomic.Int32
-	dbQueries      *database.Queries
-	platform       string
+type ApiConfig struct {
+	FileserverHits atomic.Int32
+	DbQueries      *database.Queries
+	Platform       string
 }
 
-func (cfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
+func (cfg *ApiConfig) MiddlewareMetricsInc(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg.fileserverHits.Add(1)
+		cfg.FileserverHits.Add(1)
 		next.ServeHTTP(w, r)
 	})
 }
 
-func (cfg *apiConfig) metricsHandler() http.Handler {
+func (cfg *ApiConfig) MetricsHandler() http.Handler {
 	handler := func(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
 
-		numberHits := cfg.fileserverHits.Load()
+		numberHits := cfg.FileserverHits.Load()
 		numberHitsStr := strconv.Itoa(int(numberHits))
 		w.Write(
 			[]byte(fmt.Sprintf(
@@ -50,13 +50,13 @@ func (cfg *apiConfig) metricsHandler() http.Handler {
 	return http.HandlerFunc(handler)
 }
 
-func (cfg *apiConfig) resetHandler() http.Handler {
+func (cfg *ApiConfig) ResetHandler() http.Handler {
 	handler := func(w http.ResponseWriter, req *http.Request) {
-		if cfg.platform != "dev" {
+		if cfg.Platform != "dev" {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
-		if err := cfg.dbQueries.ResetUsers(context.Background()); err != nil {
+		if err := cfg.DbQueries.ResetUsers(context.Background()); err != nil {
 			log.Printf("%v\n", err)
 		}
 		w.WriteHeader(http.StatusOK)
@@ -64,7 +64,7 @@ func (cfg *apiConfig) resetHandler() http.Handler {
 	return http.HandlerFunc(handler)
 }
 
-func (cfg *apiConfig) usersHandler(w http.ResponseWriter, req *http.Request) {
+func (cfg *ApiConfig) UsersHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
 		Email string `json:"email"`
 	}
@@ -77,7 +77,7 @@ func (cfg *apiConfig) usersHandler(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 
-	user, err := cfg.dbQueries.CreateUser(context.Background(), params.Email)
+	user, err := cfg.DbQueries.CreateUser(context.Background(), params.Email)
 	if err != nil {
 		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -106,10 +106,10 @@ func (cfg *apiConfig) usersHandler(w http.ResponseWriter, req *http.Request) {
 	w.Write(resp)
 }
 
-func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, req *http.Request) {
+func (cfg *ApiConfig) ChirpsHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
-		Body   string    `json:"body"`
-		UserID uuid.UUID `json:"user_id"`
+		Body   string `json:"body"`
+		UserID string `json:"user_id"`
 	}
 
 	params := parameters{}
@@ -152,20 +152,20 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	user, err := cfg.dbQueries.Getuser(context.Background(), params.UserID)
+	userId, err := uuid.Parse(params.UserID)
 	if err != nil {
-		log.Print("%v\n", err)
+		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	createChirpParams := database.CreateChirpParams{
 		Body:   strings.Join(splittedBody, " "),
-		UserID: uuid.NullUUID{UUID: user.ID, Valid: true},
+		UserID: uuid.NullUUID{UUID: userId, Valid: true},
 	}
-	chirp, err := cfg.dbQueries.CreateChirp(context.Background(), createChirpParams)
+	chirp, err := cfg.DbQueries.CreateChirp(context.Background(), createChirpParams)
 	if err != nil {
-		log.Print("%v\n", err)
+		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -186,5 +186,46 @@ func (cfg *apiConfig) chirpsHandler(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
+	w.Write(dat)
+}
+
+func (cfg *ApiConfig) ChirpsGetHandler(w http.ResponseWriter, req *http.Request) {
+	chirps, err := cfg.DbQueries.GetChirps(context.Background())
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	type chirpJson struct {
+		Id        string `json:"id"`
+		CreatedAt string `json:"created_at"`
+		UpdatedAt string `json:"updated_at"`
+		Body      string `json:"body"`
+		UserID    string `json:"user_id"`
+	}
+
+	chirpsJsons := []chirpJson{}
+
+	for _, chirp := range chirps {
+		newChirpStruct := chirpJson{
+			Id:        chirp.ID.String(),
+			CreatedAt: chirp.CreatedAt.String(),
+			UpdatedAt: chirp.UpdatedAt.String(),
+			Body:      chirp.Body,
+			UserID:    chirp.UserID.UUID.String(),
+		}
+		chirpsJsons = append(chirpsJsons, newChirpStruct)
+	}
+
+	dat, err := json.Marshal(chirpsJsons)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 	w.Write(dat)
 }

@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/dmitriy-zverev/chirpy/internal/database"
+	"github.com/dmitriy-zverev/chirpy/internal/handlers"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
@@ -35,26 +36,27 @@ func main() {
 	chirpsPath := apiPrefix + "/chirps"
 	usersPath := apiPrefix + "/users"
 
-	cfg := apiConfig{
-		dbQueries: dbQueries,
-		platform:  platform,
+	cfg := handlers.ApiConfig{
+		DbQueries: dbQueries,
+		Platform:  platform,
 	}
 
 	serveMux := http.NewServeMux()
 	serveMux.Handle(
 		appPrefix,
-		cfg.middlewareMetricsInc(
+		cfg.MiddlewareMetricsInc(
 			http.StripPrefix(
 				appPrefix,
 				http.FileServer(http.Dir(".")),
 			),
 		),
 	)
-	serveMux.HandleFunc("GET "+healthzPath, healthzHandler)
-	serveMux.HandleFunc("GET "+metricsPath, cfg.metricsHandler().ServeHTTP)
-	serveMux.HandleFunc("POST "+resetPath, cfg.resetHandler().ServeHTTP)
-	serveMux.HandleFunc("POST "+usersPath, cfg.usersHandler)
-	serveMux.HandleFunc("POST "+chirpsPath, cfg.chirpsHandler)
+	serveMux.HandleFunc("GET "+healthzPath, handlers.HealthzHandler)
+	serveMux.HandleFunc("GET "+metricsPath, cfg.MetricsHandler().ServeHTTP)
+	serveMux.HandleFunc("POST "+resetPath, cfg.ResetHandler().ServeHTTP)
+	serveMux.HandleFunc("POST "+usersPath, cfg.UsersHandler)
+	serveMux.HandleFunc("POST "+chirpsPath, cfg.ChirpsHandler)
+	serveMux.HandleFunc("GET "+chirpsPath, cfg.ChirpsGetHandler)
 
 	port := "8080"
 	server := &http.Server{
