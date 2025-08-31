@@ -32,7 +32,7 @@ func main() {
 	healthzPath := apiPrefix + "/healthz"
 	metricsPath := adminPrefix + "/metrics"
 	resetPath := adminPrefix + "/reset"
-	validateChirpPath := apiPrefix + "/validate_chirp"
+	chirpsPath := apiPrefix + "/chirps"
 	usersPath := apiPrefix + "/users"
 
 	cfg := apiConfig{
@@ -53,8 +53,8 @@ func main() {
 	serveMux.HandleFunc("GET "+healthzPath, healthzHandler)
 	serveMux.HandleFunc("GET "+metricsPath, cfg.metricsHandler().ServeHTTP)
 	serveMux.HandleFunc("POST "+resetPath, cfg.resetHandler().ServeHTTP)
-	serveMux.HandleFunc("POST "+validateChirpPath, validateChirpHandler)
 	serveMux.HandleFunc("POST "+usersPath, cfg.usersHandler)
+	serveMux.HandleFunc("POST "+chirpsPath, cfg.chirpsHandler)
 
 	port := "8080"
 	server := &http.Server{
