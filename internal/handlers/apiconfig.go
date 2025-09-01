@@ -476,3 +476,78 @@ func (cfg *ApiConfig) RevokeHandler(w http.ResponseWriter, req *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+func (cfg *ApiConfig) UsersPutHandler(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	params := parameters{}
+	if err := json.NewDecoder(req.Body).Decode(&params); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	authToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(authToken, string(cfg.JWTSecret))
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	newHashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	changeEmailPasswordParams := database.ChangeEmailPasswordParams{
+		ID:             userID,
+		Email:          params.Email,
+		HashedPassword: newHashedPassword,
+	}
+	if err := cfg.DbQueries.ChangeEmailPassword(
+		context.Background(),
+		changeEmailPasswordParams,
+	); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	userRow, err := cfg.DbQueries.GetUser(
+		context.Background(),
+		userID,
+	)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	resp, err := json.Marshal(
+		struct {
+			Id        string `json:"id"`
+			Email     string `json:"email"`
+			CreatedAt string `json:"created_at"`
+			UpdatedAt string `json:"updated_at"`
+		}{
+			Id:        userID.String(),
+			Email:     userRow.Email,
+			CreatedAt: userRow.CreatedAt.String(),
+			UpdatedAt: userRow.UpdatedAt.String(),
+		},
+	)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
+}
