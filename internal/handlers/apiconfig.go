@@ -24,6 +24,7 @@ type ApiConfig struct {
 	DbQueries      *database.Queries
 	Platform       string
 	JWTSecret      []byte
+	PolkaKey       []byte
 }
 
 func (cfg *ApiConfig) MiddlewareMetricsInc(next http.Handler) http.Handler {
@@ -609,6 +610,19 @@ func (cfg *ApiConfig) ChirpDeleteHandler(w http.ResponseWriter, req *http.Reques
 }
 
 func (cfg *ApiConfig) PolkaHookPostHandler(w http.ResponseWriter, req *http.Request) {
+	apiKey, err := auth.GetAPIKey(req.Header)
+	if err != nil {
+		log.Printf("%v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if apiKey != os.Getenv("POLKA_KEY") {
+		log.Printf("%v", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	type parameters struct {
 		Event string `json:"event"`
 		Data  struct {

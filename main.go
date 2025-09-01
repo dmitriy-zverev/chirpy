@@ -44,6 +44,8 @@ func main() {
 	cfg := handlers.ApiConfig{
 		DbQueries: dbQueries,
 		Platform:  platform,
+		JWTSecret: []byte(os.Getenv("JWT_SECRET")),
+		PolkaKey:  []byte(os.Getenv("POLKA_KEY")),
 	}
 
 	serveMux := http.NewServeMux()
