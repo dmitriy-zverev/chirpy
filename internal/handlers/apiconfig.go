@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"slices"
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/dmitriy-zverev/chirpy/internal/auth"
 	"github.com/dmitriy-zverev/chirpy/internal/database"
@@ -20,6 +22,7 @@ type ApiConfig struct {
 	FileserverHits atomic.Int32
 	DbQueries      *database.Queries
 	Platform       string
+	JWTSecret      []byte
 }
 
 func (cfg *ApiConfig) MiddlewareMetricsInc(next http.Handler) http.Handler {
@@ -121,16 +124,29 @@ func (cfg *ApiConfig) UsersHandler(w http.ResponseWriter, req *http.Request) {
 	w.Write(resp)
 }
 
-func (cfg *ApiConfig) ChirpsHandler(w http.ResponseWriter, req *http.Request) {
+func (cfg *ApiConfig) ChirpsPostHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
-		Body   string `json:"body"`
-		UserID string `json:"user_id"`
+		Body string `json:"body"`
 	}
 
 	params := parameters{}
 	if err := json.NewDecoder(req.Body).Decode(&params); err != nil {
 		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	userToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	userId, err := auth.ValidateJWT(userToken, string(cfg.JWTSecret))
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusUnauthorized)
 		return
 	}
 
@@ -165,13 +181,6 @@ func (cfg *ApiConfig) ChirpsHandler(w http.ResponseWriter, req *http.Request) {
 		if slices.Contains(profoundWords, strings.ToLower(word)) {
 			splittedBody[i] = "****"
 		}
-	}
-
-	userId, err := uuid.Parse(params.UserID)
-	if err != nil {
-		log.Printf("%v\n", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
 	}
 
 	createChirpParams := database.CreateChirpParams{
@@ -296,8 +305,9 @@ func (cfg *ApiConfig) ChirpGetHandler(w http.ResponseWriter, req *http.Request) 
 
 func (cfg *ApiConfig) LoginHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
+		Password  string `json:"password"`
+		Email     string `json:"email"`
+		ExpiresIn string `json:"expires_in_seconds,omitempty"`
 	}
 
 	params := parameters{}
@@ -321,17 +331,36 @@ func (cfg *ApiConfig) LoginHandler(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	parsedDuration, err := time.ParseDuration(params.ExpiresIn + "s")
+	if err != nil || parsedDuration.Seconds() > 3600 {
+		parsedDuration, err = time.ParseDuration(os.Getenv("JWT_EXPIRATION_TIME") + "s")
+		if err != nil {
+			log.Printf("%v\n", err)
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+	}
+
+	jwtToken, err := auth.MakeJWT(user.ID, string(cfg.JWTSecret), parsedDuration)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
 	resp, err := json.Marshal(
 		struct {
 			Id         string `json:"id"`
 			Created_at string `json:"created_at"`
 			Updated_at string `json:"updated_at"`
 			Email      string `json:"email"`
+			Token      string `json:"token"`
 		}{
 			Id:         user.ID.String(),
 			Created_at: user.CreatedAt.String(),
 			Updated_at: user.UpdatedAt.String(),
 			Email:      user.Email,
+			Token:      jwtToken,
 		},
 	)
 	if err != nil {

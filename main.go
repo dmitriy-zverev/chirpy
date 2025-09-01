@@ -58,7 +58,7 @@ func main() {
 	serveMux.HandleFunc("POST "+resetPath, cfg.ResetHandler().ServeHTTP)
 	serveMux.HandleFunc("POST "+usersPath, cfg.UsersHandler)
 	serveMux.HandleFunc("POST "+loginPath, cfg.LoginHandler)
-	serveMux.HandleFunc("POST "+chirpsPath, cfg.ChirpsHandler)
+	serveMux.HandleFunc("POST "+chirpsPath, cfg.ChirpsPostHandler)
 	serveMux.HandleFunc("GET "+chirpsPath, cfg.ChirpsGetHandler)
 	serveMux.HandleFunc("GET "+chirpPath, cfg.ChirpGetHandler)
 
