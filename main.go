@@ -37,6 +37,8 @@ func main() {
 	chirpPath := apiPrefix + "/chirps/{chirpID}"
 	usersPath := apiPrefix + "/users"
 	loginPath := apiPrefix + "/login"
+	refreshPath := apiPrefix + "/refresh"
+	revokePath := apiPrefix + "/revoke"
 
 	cfg := handlers.ApiConfig{
 		DbQueries: dbQueries,
@@ -58,6 +60,8 @@ func main() {
 	serveMux.HandleFunc("POST "+resetPath, cfg.ResetHandler().ServeHTTP)
 	serveMux.HandleFunc("POST "+usersPath, cfg.UsersHandler)
 	serveMux.HandleFunc("POST "+loginPath, cfg.LoginHandler)
+	serveMux.HandleFunc("POST "+refreshPath, cfg.RefreshHandler)
+	serveMux.HandleFunc("POST "+revokePath, cfg.RevokeHandler)
 	serveMux.HandleFunc("POST "+chirpsPath, cfg.ChirpsPostHandler)
 	serveMux.HandleFunc("GET "+chirpsPath, cfg.ChirpsGetHandler)
 	serveMux.HandleFunc("GET "+chirpPath, cfg.ChirpGetHandler)
