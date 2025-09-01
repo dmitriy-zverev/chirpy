@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/dmitriy-zverev/chirpy/internal/auth"
 	"github.com/dmitriy-zverev/chirpy/internal/database"
 	"github.com/google/uuid"
 )
@@ -66,7 +67,8 @@ func (cfg *ApiConfig) ResetHandler() http.Handler {
 
 func (cfg *ApiConfig) UsersHandler(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	params := parameters{}
@@ -75,12 +77,24 @@ func (cfg *ApiConfig) UsersHandler(w http.ResponseWriter, req *http.Request) {
 	if err := decoder.Decode(&params); err != nil {
 		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
-	user, err := cfg.DbQueries.CreateUser(context.Background(), params.Email)
+	hashedPassword, err := auth.HashPassword(params.Password)
 	if err != nil {
 		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	createUserParams := database.CreateUserParams{
+		Email:          params.Email,
+		HashedPassword: hashedPassword,
+	}
+	user, err := cfg.DbQueries.CreateUser(context.Background(), createUserParams)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	resp, err := json.Marshal(
@@ -99,6 +113,7 @@ func (cfg *ApiConfig) UsersHandler(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -277,4 +292,55 @@ func (cfg *ApiConfig) ChirpGetHandler(w http.ResponseWriter, req *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(dat)
+}
+
+func (cfg *ApiConfig) LoginHandler(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Password string `json:"password"`
+		Email    string `json:"email"`
+	}
+
+	params := parameters{}
+
+	if err := json.NewDecoder(req.Body).Decode(&params); err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	user, err := cfg.DbQueries.LoginUser(context.Background(), params.Email)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if err := auth.CheckPasswordHash(params.Password, user.HashedPassword); err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	resp, err := json.Marshal(
+		struct {
+			Id         string `json:"id"`
+			Created_at string `json:"created_at"`
+			Updated_at string `json:"updated_at"`
+			Email      string `json:"email"`
+		}{
+			Id:         user.ID.String(),
+			Created_at: user.CreatedAt.String(),
+			Updated_at: user.UpdatedAt.String(),
+			Email:      user.Email,
+		},
+	)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(resp)
 }
