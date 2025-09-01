@@ -551,3 +551,53 @@ func (cfg *ApiConfig) UsersPutHandler(w http.ResponseWriter, req *http.Request) 
 	w.WriteHeader(http.StatusOK)
 	w.Write(resp)
 }
+
+func (cfg *ApiConfig) ChirpDeleteHandler(w http.ResponseWriter, req *http.Request) {
+	chirpId, err := uuid.Parse(req.PathValue("chirpID"))
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	authToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(authToken, string(cfg.JWTSecret))
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	chirpRow, err := cfg.DbQueries.GetChirp(
+		context.Background(),
+		chirpId,
+	)
+	if err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if chirpRow.UserID != userID {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusForbidden)
+		return
+	}
+
+	if err := cfg.DbQueries.DeleteChirp(
+		context.Background(),
+		chirpId,
+	); err != nil {
+		log.Printf("%v\n", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

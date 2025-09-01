@@ -66,6 +66,7 @@ func main() {
 	serveMux.HandleFunc("POST "+chirpsPath, cfg.ChirpsPostHandler)
 	serveMux.HandleFunc("GET "+chirpsPath, cfg.ChirpsGetHandler)
 	serveMux.HandleFunc("GET "+chirpPath, cfg.ChirpGetHandler)
+	serveMux.HandleFunc("DELETE "+chirpPath, cfg.ChirpDeleteHandler)
 
 	port := "8080"
 	server := &http.Server{
