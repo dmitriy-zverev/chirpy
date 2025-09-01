@@ -39,6 +39,7 @@ func main() {
 	loginPath := apiPrefix + "/login"
 	refreshPath := apiPrefix + "/refresh"
 	revokePath := apiPrefix + "/revoke"
+	polkaWebhootPath := apiPrefix + "/polka/webhooks"
 
 	cfg := handlers.ApiConfig{
 		DbQueries: dbQueries,
@@ -67,6 +68,7 @@ func main() {
 	serveMux.HandleFunc("GET "+chirpsPath, cfg.ChirpsGetHandler)
 	serveMux.HandleFunc("GET "+chirpPath, cfg.ChirpGetHandler)
 	serveMux.HandleFunc("DELETE "+chirpPath, cfg.ChirpDeleteHandler)
+	serveMux.HandleFunc("POST "+polkaWebhootPath, cfg.PolkaHookPostHandler)
 
 	port := "8080"
 	server := &http.Server{

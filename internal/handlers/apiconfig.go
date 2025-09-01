@@ -103,15 +103,17 @@ func (cfg *ApiConfig) UsersHandler(w http.ResponseWriter, req *http.Request) {
 
 	resp, err := json.Marshal(
 		struct {
-			Id         string `json:"id"`
-			Created_at string `json:"created_at"`
-			Updated_at string `json:"updated_at"`
-			Email      string `json:"email"`
+			Id          string `json:"id"`
+			Created_at  string `json:"created_at"`
+			Updated_at  string `json:"updated_at"`
+			Email       string `json:"email"`
+			IsChirpyRed bool   `json:"is_chirpy_red"`
 		}{
-			Id:         user.ID.String(),
-			Created_at: user.CreatedAt.String(),
-			Updated_at: user.UpdatedAt.String(),
-			Email:      user.Email,
+			Id:          user.ID.String(),
+			Created_at:  user.CreatedAt.String(),
+			Updated_at:  user.UpdatedAt.String(),
+			Email:       user.Email,
+			IsChirpyRed: user.IsChirpyRed.Bool,
 		},
 	)
 	if err != nil {
@@ -374,6 +376,7 @@ func (cfg *ApiConfig) LoginHandler(w http.ResponseWriter, req *http.Request) {
 			Email        string `json:"email"`
 			Token        string `json:"token"`
 			RefreshToken string `json:"refresh_token"`
+			IsChirpyRed  bool   `json:"is_chirpy_red"`
 		}{
 			Id:           user.ID.String(),
 			Created_at:   user.CreatedAt.String(),
@@ -381,6 +384,7 @@ func (cfg *ApiConfig) LoginHandler(w http.ResponseWriter, req *http.Request) {
 			Email:        user.Email,
 			Token:        jwtToken,
 			RefreshToken: refreshToken,
+			IsChirpyRed:  user.IsChirpyRed.Bool,
 		},
 	)
 	if err != nil {
@@ -531,15 +535,17 @@ func (cfg *ApiConfig) UsersPutHandler(w http.ResponseWriter, req *http.Request) 
 
 	resp, err := json.Marshal(
 		struct {
-			Id        string `json:"id"`
-			Email     string `json:"email"`
-			CreatedAt string `json:"created_at"`
-			UpdatedAt string `json:"updated_at"`
+			Id          string `json:"id"`
+			Email       string `json:"email"`
+			CreatedAt   string `json:"created_at"`
+			UpdatedAt   string `json:"updated_at"`
+			IsChirpyRed bool   `json:"is_chirpy_red"`
 		}{
-			Id:        userID.String(),
-			Email:     userRow.Email,
-			CreatedAt: userRow.CreatedAt.String(),
-			UpdatedAt: userRow.UpdatedAt.String(),
+			Id:          userID.String(),
+			Email:       userRow.Email,
+			CreatedAt:   userRow.CreatedAt.String(),
+			UpdatedAt:   userRow.UpdatedAt.String(),
+			IsChirpyRed: userRow.IsChirpyRed.Bool,
 		},
 	)
 	if err != nil {
@@ -596,6 +602,39 @@ func (cfg *ApiConfig) ChirpDeleteHandler(w http.ResponseWriter, req *http.Reques
 	); err != nil {
 		log.Printf("%v\n", err)
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (cfg *ApiConfig) PolkaHookPostHandler(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Event string `json:"event"`
+		Data  struct {
+			UserID uuid.UUID `json:"user_id"`
+		} `json:"data"`
+	}
+
+	params := parameters{}
+	if err := json.NewDecoder(req.Body).Decode(&params); err != nil {
+		log.Printf("%v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if params.Event != POLKA_WEBHOOK_EVENT {
+		log.Printf("unsupported event type")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	if err := cfg.DbQueries.UpgradeChirpyRed(
+		context.Background(),
+		params.Data.UserID,
+	); err != nil {
+		log.Printf("%v", err)
+		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
