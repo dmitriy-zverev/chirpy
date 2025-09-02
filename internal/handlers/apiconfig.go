@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -225,6 +226,7 @@ func (cfg *ApiConfig) ChirpsPostHandler(w http.ResponseWriter, req *http.Request
 
 func (cfg *ApiConfig) ChirpsGetHandler(w http.ResponseWriter, req *http.Request) {
 	authorId := req.URL.Query().Get("author_id")
+	sortValue := req.URL.Query().Get("sort")
 
 	var chirps []database.Chirp
 	var err error
@@ -250,6 +252,17 @@ func (cfg *ApiConfig) ChirpsGetHandler(w http.ResponseWriter, req *http.Request)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+	}
+
+	switch sortValue {
+	case "asc":
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
+		})
+	case "desc":
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[j].CreatedAt.Before(chirps[i].CreatedAt)
+		})
 	}
 
 	type chirpJson struct {
