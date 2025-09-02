@@ -192,4 +192,4 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+This project is fully open source. Feel free to use it as you wish.
