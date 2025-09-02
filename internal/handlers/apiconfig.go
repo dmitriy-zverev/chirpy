@@ -224,11 +224,32 @@ func (cfg *ApiConfig) ChirpsPostHandler(w http.ResponseWriter, req *http.Request
 }
 
 func (cfg *ApiConfig) ChirpsGetHandler(w http.ResponseWriter, req *http.Request) {
-	chirps, err := cfg.DbQueries.GetChirps(context.Background())
-	if err != nil {
-		log.Printf("%v\n", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	authorId := req.URL.Query().Get("author_id")
+
+	var chirps []database.Chirp
+	var err error
+
+	if authorId != "" {
+		userID, err := uuid.Parse(authorId)
+		if err != nil {
+			log.Printf("%v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		chirps, err = cfg.DbQueries.GetChirpsFromId(context.Background(), userID)
+		if err != nil {
+			log.Printf("%v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	} else {
+		chirps, err = cfg.DbQueries.GetChirps(context.Background())
+		if err != nil {
+			log.Printf("%v\n", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
 
 	type chirpJson struct {
